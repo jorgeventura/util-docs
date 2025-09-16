@@ -19,7 +19,7 @@ OpenRC, unlike systemd, doesn't have a built-in session and seat manager. This f
    Ini, TOML  
    # Example /etc/portage/make.conf  
 
-   USE\="... elogind \-systemd ..."
+   USE\="... X elogind -systemd ..."
 
    After adding it, you'll need to update your system so the changes are applied to all relevant packages.  
    ```Bash  
@@ -48,11 +48,47 @@ OpenRC, unlike systemd, doesn't have a built-in session and seat manager. This f
 ```Bash
 sudo emerge -av x11-wm/openbox
 ```
+### 2.1 Install Terminator
+
+```Bash
+sudo emerge -av x11-terms/terminator
+```
+
+### 2.2 Configure for an specific user
+
+Copy the file fro /etc/xdg/openbox to .config .
+
+```Bash
+cp -a /etc/xdg/openbox ~/.config/
+```
+
+### 2.3 Add background image
+
+Install the program **feh** :
+
+```Bash
+sudo emerge -av media-gfx/feh
+```
+Edit the the file *~/.config/openbox/autostart* and at the top include the line:
+
+```
+feh --bg-tile ~/.config/openbox/weston.png
+```
 
 
 ## 3.0 Adjust the monitor screen size
 
 To adjust the monitor resolution if required, use the utility called **cvt** to create the file below:
+
+```Bash
+cvt 2560 1080
+```
+and will get the line to be used in the X configuration file.
+
+```
+# 2560x1080 59.98 Hz (CVT) hsync: 67.17 kHz; pclk: 230.00 MHz
+Modeline "2560x1080_60.00"  230.00  2560 2720 2992 3424  1080 1083 1093 1120 -hsync +vsync
+```
 
 ```
 Section "Monitor"
