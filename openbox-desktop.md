@@ -12,7 +12,7 @@ OpenRC, unlike systemd, doesn't have a built-in session and seat manager. This f
 
 1. **Install elogind:** If you haven't already, install it.  
    ```Bash  
-   sudo emerge \--ask \--verbose elogind
+   sudo emerge -av elogind
    ```
 
 2. **Enable the elogind USE Flag:** Many packages need to be compiled with support for elogind to integrate with it correctly. Ensure the elogind USE flag is set globally in your /etc/portage/make.conf.  
