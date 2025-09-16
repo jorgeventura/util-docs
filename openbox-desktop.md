@@ -42,3 +42,40 @@ OpenRC, unlike systemd, doesn't have a built-in session and seat manager. This f
      rc-status
      ```
 ---
+
+## 2.0 Install openbox desktop
+
+```Bash
+sudo emerge -av x11-wm/openbox
+```
+
+
+## 3.0 Adjust the monitor screen size
+
+To adjust the monitor resolution if required, use the utility called **cvt** to create the file below:
+
+```
+Section "Monitor"
+    Identifier "Monitor0"
+    Modeline "1920x1080"  173.00  1920 2048 2248 2576  1080 1083 1088 1120 -hsync +vsync
+    Modeline "2552x1016"  176.25  2552 2696 2960 3368  1016 1019 1029 1048 -hsync +vsync
+    Option "PreferredMode" "2552x1016"
+EndSection
+
+Section "Device"
+    Identifier "Virtio GPU"
+    Driver "modesetting"
+EndSection
+
+Section "Screen"
+    Identifier "Screen0"
+    Device "Virtio GPU"
+    Monitor "Monitor0"
+    DefaultDepth 24
+    SubSection "Display"
+        Modes "1920x1080"
+        Modes "2552x1016"
+    EndSubSection
+EndSection
+
+```
