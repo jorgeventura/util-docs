@@ -7,11 +7,44 @@ This document provides the end-to-end workflow for converting a **raw disk image
 ## Phase 1: Local Preparation (Gentoo Workstation)
 Convert the raw image into a VMware-compatible virtual disk (VMDK). 
 
-1.  **Convert Format:**
+1.  **Check the format:**
+
+It's important to check the image format. If the format is not raw, but qcow2, an additional conversion is required.
+
+```bash
+qemu-img info cirros.img
+
+image: original.img
+file format: qcow2
+virtual size: 112 MiB (117440512 bytes)
+disk size: 49.4 MiB
+cluster_size: 65536
+Format specific information:
+    compat: 1.1
+    compression type: zlib
+    lazy refcounts: false
+    refcount bits: 16
+    corrupt: false
+    extended l2: false
+Child node '/file':
+    filename: cirros.img
+    protocol type: file
+    file length: 49.4 MiB (51838976 bytes)
+    disk size: 49.4 MiB
+```
+
+The orginal.img above is qcow2 (file format: qcow2), this is not a raw image and the conversion to raw is required.
+
+```bash
+qemu-img convert -f qcow2 -O raw cirros.img cirros.raw
+qemu-img info disk.raw
+```
+
+2.  **Convert Format:**
     ```bash
-    qemu-img convert -f raw -O vmdk -o adapter_type=lsilogic,subformat=monolithicSparse cirros-rootfs.img cirros.vmdk
+    qemu-img convert -f raw -O vmdk -o adapter_type=lsilogic,subformat=monolithicSparse cirros.raw cirros.vmdk
     ```
-2.  **Upload to ESXi:** Use `scp` to move `cirros.vmdk` to your ESXi datastore (e.g., `/vmfs/volumes/datastore1/`).
+3.  **Upload to ESXi:** Use `scp` to move `cirros.vmdk` to your ESXi datastore (e.g., `/vmfs/volumes/datastore1/`).
 
 ---
 
