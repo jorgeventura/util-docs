@@ -1,102 +1,104 @@
-This guide outlines the complete technical workflow for converting a raw disk image into a VMware-compatible OVA using only Command Line Interface (CLI) tools. This process was specifically tested using **CirrOS 0.6.3** on a **Gentoo Linux** workstation and a **VMware ESXi 7.x/8.x** host.
+---
 
-## ---
+# CLI Guide: Creating a VMware OVA from a Raw Image
 
-**1\. Preparation (Local Machine)**
+This document provides the end-to-end workflow for converting a **raw disk image** (like `cirros.img`) into a portable **OVA** using only CLI tools. 
 
-Before moving to the server, convert your raw image into a VMware-compatible virtual disk (VMDK).
+## Phase 1: Local Preparation (Gentoo Workstation)
+Convert the raw image into a VMware-compatible virtual disk (VMDK). 
 
-* **Tool:** qemu-img (available in app-emulation/qemu on Gentoo).  
-* **Command:**  
-  Bash  
-  qemu-img convert \-f raw \-O vmdk \-o adapter\_type=lsilogic,subformat=monolithicSparse cirros-rootfs.img cirros.vmdk
+1.  **Convert Format:**
+    ```bash
+    qemu-img convert -f raw -O vmdk -o adapter_type=lsilogic,subformat=monolithicSparse cirros-rootfs.img cirros.vmdk
+    ```
+2.  **Upload to ESXi:** Use `scp` to move `cirros.vmdk` to your ESXi datastore (e.g., `/vmfs/volumes/datastore1/`).
 
-* **Upload:** Use scp to move cirros.vmdk to your ESXi datastore.
+---
 
-## ---
+## Phase 2: Native Disk Conversion (SSH to ESXi)
+ESXi requires a specific descriptor format to recognize the disk. You must clone it into a native thin-provisioned format.
 
-**2\. Disk Native Conversion (ESXi CLI)**
+1.  **Navigate to Storage:**
+    ```bash
+    cd /vmfs/volumes/datastore1/
+    mkdir cirros_build && cd cirros_build
+    ```
+2.  **Clone the Disk:**
+    ```bash
+    vmkfstools -i /upload path at ESXi/cirros.vmdk -d thin cirros-final.vmdk
+    ```
+    *Note: This creates two files: `cirros-final.vmdk` (descriptor) and `cirros-final-flat.vmdk` (data).*
 
-ESXi requires a specific descriptor format that qemu-img does not always provide perfectly. You must "clone" the disk into a native thin-provisioned format.
+---
 
-1. **Navigate to your datastore:**  
-   Bash  
-   cd /vmfs/volumes/datastore1/  
-   mkdir cirros\_build && cd cirros\_build
+## Phase 3: VM Configuration and Registration (ESXi SSH)
+Create the "Hardware Wrapper" (VMX) for the disk.
 
-2. **Clone the disk:**  
-   Bash  
-   vmkfstools \-i /path/to/uploaded/cirros.vmdk \-d thin cirros-final.vmdk
+1.  **Create `cirros.vmx`:**
+    ```text
+    config.version = "8"
+    virtualHW.version = "13"
+    memsize = "256"
+    numvcpus = "1"
+    guestOS = "other3xlinux-64"
 
-   *Note: If this fails, ensure you are working on a VMFS partition and not a VFAT boot partition.*
+    # To define the firmware as UEFI in a VMware .vmx file
+    # firmware = "efi"
+    
+    # IMPORTANT: This name is used by ovftool in the locator
+    displayName = "CirrOS-Export-VM"
 
-## ---
+    ethernet0.present = "TRUE"
+    ethernet0.virtualDev = "e1000"
+    ethernet0.networkName = "VM Network"
+    ethernet0.addressType = "generated"
 
-**3\. VM Registration (ESXi CLI)**
+    scsi0.present = "TRUE"
+    scsi0.virtualDev = "lsilogic"
+    scsi0:0.present = "TRUE"
+    scsi0:0.fileName = "cirros-final.vmdk"
+    ```
+2.  **Register the VM:**
+    ```bash
+    # Use the absolute path to the .vmx file
+    vim-cmd solo/registervm /vmfs/volumes/datastore1/cirros_build/cirros.vmx
+    ```
 
-Create the "hardware" wrapper for your disk.
+---
 
-1. **Create the configuration file (cirros.vmx):**  
-   Plaintext  
-   config.version \= "8"  
-   virtualHW.version \= "13"  
-   memsize \= "256"  
-   numvcpus \= "1"  
-   guestOS \= "other3xlinux-64"  
-   ethernet0.present \= "TRUE"  
-   ethernet0.virtualDev \= "e1000"  
-   ethernet0.networkName \= "VM Network"  
-   ethernet0.addressType \= "generated"  
-   scsi0.present \= "TRUE"  
-   scsi0.virtualDev \= "lsilogic"  
-   scsi0:0.present \= "TRUE"  
-   scsi0:0.fileName \= "cirros-final.vmdk"
+## Phase 4: Exporting to OVA (Gentoo Workstation)
+Use the `ovftool` to connect to the ESXi host and pull the VM into a compressed package.
 
-2. **Register the VM with the hypervisor:**  
-   Bash  
-   vim-cmd solo/registervm /vmfs/volumes/datastore1/cirros\_build/cirros.vmx
+* **Syntax:** `vi://[user]:[pass]@[host]/[displayName]`
+* **Command:**
+    ```bash
+    ./ovftool --noSSLVerify \
+      vi://root@<ESXI_IP>/CirrOS-Export-VM \
+      ~/cirros-0.6.3.ova
+    ```
 
-3. **Power On (Verify):**  
-   Bash  
-   \# Get ID, then power on  
-   vim-cmd vmsvc/getallvms  
-   vim-cmd vmsvc/power.on \<VM\_ID\>
+---
 
-## ---
+## Phase 5: Verification & Cleanup
+1.  **Verify the OVA:** ```bash
+    tar -tvf ~/cirros-0.6.3.ova
+    ```
+    (You should see the `.ovf`, `.mf`, and `.vmdk` files).
+2.  **Cleanup ESXi:**
+    ```bash
+    # Get the VM ID first
+    vim-cmd vmsvc/getallvms | grep CirrOS
+    # Unregister and delete
+    vim-cmd vmsvc/unregister <VM_ID>
+    rm -rf /vmfs/volumes/datastore1/cirros_build
+    ```
 
-**4\. OVA Export (Local Machine)**
+---
 
-The final step uses the VMware OVF Tool to pull the VM from the host and package it as a compressed .ova file.
-
-* **Tool:** ovftool (Standalone binary from VMware/Broadcom).  
-* **Command:**  
-  Bash  
-  ./ovftool \--noSSLVerify \\  
-    vi://root@\<ESXI\_IP\>/CirrOS-Export-VM \\  
-    \~/cirros-0.6.3-build.ova
-
-## ---
-
-**5\. Result Verification**
-
-A successful export results in a single .ova file. You can inspect its contents using tar:
-
-Bash
-
-tar \-tvf \~/cirros-0.6.3-build.ova
-
-**Expected files:**
-
-* .ovf: XML hardware descriptor.  
-* .mf: SHA checksum manifest.  
-* .vmdk: Stream-optimized (compressed) disk image.
-
-### ---
-
-**Troubleshooting Summary**
-
-* **Power On Failure:** Check vmware.log. If it complains about GuestOS, ensure guestOS \= "other3xlinux-64" is set in the .vmx.  
-* **Disk Errors:** Ensure you are using vmkfstools on the ESXi host to finalize the disk before registration.  
-* **Space Issues:** Always work inside /vmfs/volumes/datastore\_name/ to avoid filling up the ESXi RAM-disk.
-
-Would you like me to convert this into a Markdown file you can download or save directly to your Gentoo system?
+### Technical Summary Table
+| Component | Value | Role |
+| :--- | :--- | :--- |
+| **Source Image** | `raw` | Bit-for-bit disk copy |
+| **Guest OS ID** | `other3xlinux-64` | Compatibility string for modern ESXi |
+| **Display Name** | `CirrOS-Export-VM` | The **key identifier** for the `ovftool` locator |
+| **Disk Adapter** | `lsilogic` | Standard SCSI controller for Linux |
