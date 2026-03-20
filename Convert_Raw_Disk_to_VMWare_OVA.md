@@ -37,7 +37,7 @@ The orginal.img above is qcow2 (file format: qcow2), this is not a raw image and
 
 ```bash
 qemu-img convert -f qcow2 -O raw cirros.img cirros.raw
-qemu-img info disk.raw
+qemu-img info cirros.raw
 ```
 
 2.  **Convert Format:**
