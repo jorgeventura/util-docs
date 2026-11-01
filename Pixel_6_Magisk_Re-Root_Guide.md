@@ -147,7 +147,7 @@ adb wait-for-device
 adb shell magisk --remove-modules
 ```
 
-&nbsp;
+---
 
 
 
@@ -208,7 +208,6 @@ During a monthly OTA, only the inactive slot receives the new build's kernel and
 
 ### Quick Markdown Snippet for Your Docs
 
-```markdown
 ### A/B Slot Verification & Flashing
 
 1. Check active slot:
@@ -235,6 +234,9 @@ fastboot flash boot_<slot> magisk_patched.img
 4. Reboot into system:
 ```bash
 fastboot reboot
+```
+
+
 
 ```
 
