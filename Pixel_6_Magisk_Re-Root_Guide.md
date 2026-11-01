@@ -148,3 +148,93 @@ adb shell magisk --remove-modules
 ```
 
 &nbsp;
+
+
+
+On A/B slot devices like the Pixel 6, flashing to the wrong slot or leaving the backup slot unpatched can cause bootloops or unexpected loss of root after an OTA or fallback reboot.
+
+---
+
+### Understanding the A/B Slot Behavior on Pixel 6
+
+* **Active vs. Inactive Slot:** Android always runs from one slot (`a` or `b`) while system OTAs write to the inactive slot in the background.
+* **The `fastboot flash boot` Trap:** Running `fastboot flash boot <image>` targets whichever slot is currently flagged **active** in the bootloader. If a recent OTA just finished installing and swapped the active flag, flashing `boot` without checking can accidentally overwrite the old slot instead of the newly updated one.
+* **Kernel & Vendor Boot:** On the Pixel 6 (Google Tensor), standard Magisk patching modifies the standard `boot.img` (which contains the generic kernel), not `vendor_boot.img`.
+
+---
+
+### Recommended Best Practices
+
+#### 1. Always Query the Active Slot First
+
+Before flashing, check which slot the bootloader is currently set to boot:
+
+```bash
+fastboot getvar current-slot
+
+```
+
+If it returns `current-slot: a`, the device will boot from slot `a`. If it returns `b`, it boots from `b`.
+
+#### 2. Explicitly Target the Active Slot
+
+Rather than relying on `fastboot flash boot magisk_patched.img` (which defaults to active, but can be error-prone if state changes mid-session), specify the slot directly:
+
+```bash
+# If current-slot was 'a':
+fastboot flash boot_a magisk_patched.img
+
+# If current-slot was 'b':
+fastboot flash boot_b magisk_patched.img
+
+```
+
+#### 3. Test with `fastboot boot` Before Flashing
+
+To ensure the patched kernel doesn't bootloop (especially if kernel/build versions mismatch):
+
+```bash
+fastboot boot magisk_patched.img
+
+```
+
+This performs a one-time RAM boot without altering either `boot_a` or `boot_b` on flash storage. If the device boots cleanly with Magisk functional, reboot into bootloader and flash permanently.
+
+#### 4. Never Flash Both Slots with the Same Image After an OTA
+
+During a monthly OTA, only the inactive slot receives the new build's kernel and vendor partitions. Flashing a new build's patched `boot.img` onto the *old* slot will mismatch that slot's vendor/system partitions and break rollback protection. Only flash the slot matching the OS build the `boot.img` came from.
+
+---
+
+### Quick Markdown Snippet for Your Docs
+
+```markdown
+### A/B Slot Verification & Flashing
+
+1. Check active slot:
+   ```bash
+   fastboot getvar current-slot
+
+```
+
+2. One-time test boot (recommended):
+```bash
+fastboot boot magisk_patched.img
+
+```
+
+
+3. Flash specifically to the verified active slot:
+```bash
+# Replace `<slot>` with either 'a' or 'b'
+fastboot flash boot_<slot> magisk_patched.img
+
+```
+
+
+4. Reboot into system:
+```bash
+fastboot reboot
+
+```
+
